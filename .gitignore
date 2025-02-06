@@ -43,3 +43,6 @@ next-env.d.ts
 # cursor
 .cursor
 .cursorrules
+
+# Cache directory
+.cache/
