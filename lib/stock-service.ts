@@ -1,12 +1,8 @@
 import yahooFinance from 'yahoo-finance2';
-import { StockAnalysis, StockQuote, CompanyProfile, FinancialData, KeyStatistics, DividendInfo, NewsItem } from './types/stock';
-import { fetchNewsContent, EnrichedNewsItem } from './news-fetcher';
+import { StockAnalysis, StockQuote, CompanyProfile, FinancialData, KeyStatistics, DividendInfo, IncomeStatementItem, BalanceSheetItem, CashFlowItem, EarningsItem } from './types/stock';
+import { getCompanyNews, getIncomeStatement, getBalanceSheet, getCashFlow, getEarnings } from './alpha-vantage';
 
-export interface EnrichedStockAnalysis extends Omit<StockAnalysis, 'news'> {
-  news: EnrichedNewsItem[];
-}
-
-export async function getStockData(ticker: string): Promise<EnrichedStockAnalysis> {
+export async function getStockData(ticker: string): Promise<StockAnalysis> {
   try {
     // Fetch quote data
     const quote = await yahooFinance.quote(ticker);
@@ -24,8 +20,20 @@ export async function getStockData(ticker: string): Promise<EnrichedStockAnalysi
       yahooFinance.quoteSummary(ticker, { modules: ['summaryDetail'] })
     ]);
 
-    // Fetch news
-    const news = await yahooFinance.search(ticker, { newsCount: 5 });
+    // Fetch news and fundamental data in parallel
+    const [
+      news,
+      incomeStatements,
+      balanceSheets,
+      cashFlows,
+      earnings
+    ] = await Promise.all([
+      getCompanyNews(ticker),
+      getIncomeStatement(ticker),
+      getBalanceSheet(ticker),
+      getCashFlow(ticker),
+      getEarnings(ticker)
+    ]);
 
     // Transform quote data with null checks
     const stockQuote: StockQuote = {
@@ -101,22 +109,58 @@ export async function getStockData(ticker: string): Promise<EnrichedStockAnalysi
       lastDividendValue: summaryDetail.summaryDetail?.dividendRate || 0
     };
 
-    // Transform news items and fetch content
-    const newsItems: NewsItem[] = news.news?.map(item => ({
-      title: item.title || '',
-      link: item.link || '',
-      publisher: item.publisher || '',
-      publishedAt: typeof item.providerPublishTime === 'number' 
-        ? new Date(item.providerPublishTime * 1000).toISOString() 
-        : new Date().toISOString(),
-      type: item.type || '',
-      relatedTickers: item.relatedTickers || []
-    })) || [];
+    // Transform fundamental data
+    const transformedIncomeStatements: IncomeStatementItem[] = incomeStatements.map(item => ({
+      fiscalDateEnding: item.fiscalDateEnding,
+      reportedCurrency: item.reportedCurrency,
+      grossProfit: parseFloat(item.grossProfit) || 0,
+      totalRevenue: parseFloat(item.totalRevenue) || 0,
+      costOfRevenue: parseFloat(item.costOfRevenue) || 0,
+      operatingIncome: parseFloat(item.operatingIncome) || 0,
+      netIncome: parseFloat(item.netIncome) || 0,
+      researchAndDevelopment: parseFloat(item.researchAndDevelopment) || 0,
+      operatingExpenses: parseFloat(item.operatingExpenses) || 0,
+      interestExpense: parseFloat(item.interestExpense) || 0,
+      incomeTaxExpense: parseFloat(item.incomeTaxExpense) || 0,
+      ebit: parseFloat(item.ebit) || 0,
+      ebitda: parseFloat(item.ebitda) || 0
+    }));
 
-    // Fetch news content in parallel
-    const enrichedNews = await Promise.all(
-      newsItems.map(item => fetchNewsContent(item))
-    );
+    const transformedBalanceSheets: BalanceSheetItem[] = balanceSheets.map(item => ({
+      fiscalDateEnding: item.fiscalDateEnding,
+      reportedCurrency: item.reportedCurrency,
+      totalAssets: parseFloat(item.totalAssets) || 0,
+      totalCurrentAssets: parseFloat(item.totalCurrentAssets) || 0,
+      cashAndCashEquivalents: parseFloat(item.cashAndCashEquivalents) || 0,
+      inventory: parseFloat(item.inventory) || 0,
+      totalLiabilities: parseFloat(item.totalLiabilities) || 0,
+      totalCurrentLiabilities: parseFloat(item.totalCurrentLiabilities) || 0,
+      totalShareholderEquity: parseFloat(item.totalShareholderEquity) || 0,
+      retainedEarnings: parseFloat(item.retainedEarnings) || 0,
+      commonStock: parseFloat(item.commonStock) || 0,
+      commonStockSharesOutstanding: parseFloat(item.commonStockSharesOutstanding) || 0
+    }));
+
+    const transformedCashFlows: CashFlowItem[] = cashFlows.map(item => ({
+      fiscalDateEnding: item.fiscalDateEnding,
+      reportedCurrency: item.reportedCurrency,
+      operatingCashflow: parseFloat(item.operatingCashflow) || 0,
+      capitalExpenditures: parseFloat(item.capitalExpenditures) || 0,
+      cashflowFromInvestment: parseFloat(item.cashflowFromInvestment) || 0,
+      cashflowFromFinancing: parseFloat(item.cashflowFromFinancing) || 0,
+      netIncome: parseFloat(item.netIncome) || 0,
+      dividendPayout: parseFloat(item.dividendPayout) || 0,
+      freeCashFlow: parseFloat(item.freeCashFlow) || 0
+    }));
+
+    const transformedEarnings: EarningsItem[] = earnings.map(item => ({
+      fiscalDateEnding: item.fiscalDateEnding,
+      reportedDate: item.reportedDate,
+      reportedEPS: parseFloat(item.reportedEPS) || 0,
+      estimatedEPS: parseFloat(item.estimatedEPS) || 0,
+      surprise: parseFloat(item.surprise) || 0,
+      surprisePercentage: parseFloat(item.surprisePercentage) || 0
+    }));
 
     return {
       quote: stockQuote,
@@ -124,7 +168,13 @@ export async function getStockData(ticker: string): Promise<EnrichedStockAnalysi
       financials: financialData,
       keyStatistics: keyStatistics,
       dividendInfo: dividendInfo,
-      news: enrichedNews
+      news,
+      fundamentals: {
+        incomeStatements: transformedIncomeStatements,
+        balanceSheets: transformedBalanceSheets,
+        cashFlows: transformedCashFlows,
+        earnings: transformedEarnings
+      }
     };
   } catch (error) {
     console.error('Error fetching stock data:', error);
