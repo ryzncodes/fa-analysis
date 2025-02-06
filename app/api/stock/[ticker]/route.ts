@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getStockData } from '@/lib/yahoo-finance';
+import { getStockData } from '../../../../lib/stock-service';
 
 export const dynamic = 'force-dynamic'; // Ensure the route is dynamic
 export const dynamicParams = true;

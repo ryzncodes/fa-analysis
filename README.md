@@ -1,14 +1,15 @@
 # Fundamental Analysis Webapp
 
-A modern web application that provides data-driven fundamental analysis for stocks. The system fetches financial data from Yahoo Finance, standardizes the information, and leverages a Retrieval-Augmented Generation (RAG) approach with an LLM for comprehensive analysis.
+A modern web application that provides data-driven fundamental analysis for stocks. The system fetches financial data from multiple sources including Yahoo Finance and Alpha Vantage, standardizes the information, and leverages a Retrieval-Augmented Generation (RAG) approach with an LLM for comprehensive analysis.
 
 ## Features
 
-- 📊 Real-time stock data fetching
+- 📊 Real-time stock data fetching from multiple sources
 - 📈 Comprehensive financial metrics
 - 📑 Company profiles and key statistics
 - 📰 Latest news with full article content
 - 💹 Dividend information and analysis
+- 🔄 Efficient data caching
 - 🤖 RAG-powered analysis (Coming Soon)
 
 ## Tech Stack
@@ -23,7 +24,10 @@ A modern web application that provides data-driven fundamental analysis for stoc
 ### Backend
 - **Framework:** Next.js API Routes (serverless functions)
 - **Language:** TypeScript
-- **Data Source:** Yahoo Finance API
+- **Data Sources:** 
+  - Yahoo Finance API
+  - Alpha Vantage API
+- **Caching:** In-memory caching system
 
 ### LLM Integration (Coming Soon)
 - **Language:** Python
@@ -43,12 +47,18 @@ cd [repository-name]
 npm install
 ```
 
-3. Run the development server:
+3. Set up environment variables:
+Create a `.env.local` file with:
+```env
+ALPHA_VANTAGE_API_KEY=your_api_key_here
+```
+
+4. Run the development server:
 ```bash
 npm run dev
 ```
 
-4. Open [http://localhost:3000](http://localhost:3000) with your browser.
+5. Open [http://localhost:3000](http://localhost:3000) with your browser.
 
 ## API Endpoints
 
@@ -60,6 +70,10 @@ Fetches comprehensive stock data including:
 - Key statistics
 - Dividend information
 - Latest news with full article content
+- Income statements
+- Balance sheets
+- Cash flow statements
+- Earnings data
 
 Example response:
 ```json
@@ -74,6 +88,12 @@ Example response:
     "industry": "Consumer Electronics",
     // ... more company info
   },
+  "fundamentals": {
+    "incomeStatements": [...],
+    "balanceSheets": [...],
+    "cashFlows": [...],
+    "earnings": [...]
+  },
   // ... financial data, news, etc.
 }
 ```
@@ -82,27 +102,36 @@ Example response:
 ```
 ├── app/
 │   ├── api/
-│   │   └── stock/
-│   │       └── [ticker]/
-│   │           └── route.ts
-│   └── page.tsx
+│   ├── layout.tsx
+│   ├── page.tsx
+│   ├── globals.css
+│   └── favicon.ico
 ├── lib/
 │   ├── types/
-│   │   └── stock.ts
-│   ├── news-fetcher.ts
-│   └── yahoo-finance.ts
-└── components/
-    └── ui/
+│   ├── stock-news-service.ts
+│   ├── alpha-vantage-service.ts
+│   ├── alpha-vantage.ts
+│   ├── cache.ts
+│   └── stock-service.ts
+├── public/
+├── .next/
+├── node_modules/
+├── .env.local
+├── package.json
+├── package-lock.json
+└── [configuration files]
 ```
 
 ## Future Enhancements
 
 - [ ] RAG Integration for AI-powered analysis
-- [ ] Multiple financial data sources
+- [ ] Additional financial data sources
 - [ ] Advanced data visualization
 - [ ] User authentication
 - [ ] Saved analysis reports
 - [ ] Portfolio tracking
+- [ ] Enhanced caching strategies
+- [ ] Performance optimization
 
 ## Contributing
 
