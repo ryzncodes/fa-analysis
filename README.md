@@ -1,16 +1,16 @@
 # Fundamental Analysis Webapp
 
-A modern web application that provides data-driven fundamental analysis for stocks. The system fetches financial data from multiple sources including Yahoo Finance and Alpha Vantage, standardizes the information, and leverages a Retrieval-Augmented Generation (RAG) approach with an LLM for comprehensive analysis.
+A modern web application that provides data-driven fundamental analysis for stocks. The system fetches financial data from multiple sources including Yahoo Finance, standardizes and processes the information with robust error handling and efficient caching, and leverages a Retrieval-Augmented Generation (RAG) approach with an LLM for comprehensive analysis.
 
 ## Features
 
-- 📊 Real-time stock data fetching from multiple sources
-- 📈 Comprehensive financial metrics
-- 📑 Company profiles and key statistics
-- 📰 Latest news with full article content
-- 💹 Dividend information and analysis
-- 🔄 Efficient data caching
-- 🤖 RAG-powered analysis (Coming Soon)
+- 📊 Real-time stock data fetching from Yahoo Finance
+- 💰 Comprehensive financial metrics including company profiles, key statistics, dividend information, and news feeds
+- ⚙️ Robust error handling with custom error types, retry mechanisms, and structured logging
+- 🔄 Efficient caching system using both in-memory and file-based strategies for faster data retrieval
+- 🧮 Data Standardization utilities such as date normalization, number formatting, and currency formatting
+- 🤖 RAG-powered analysis (In Progress)
+- 🎨 Responsive UI with ongoing improvements for enhanced user experience
 
 ## Tech Stack
 
@@ -24,12 +24,11 @@ A modern web application that provides data-driven fundamental analysis for stoc
 ### Backend
 - **Framework:** Next.js API Routes (serverless functions)
 - **Language:** TypeScript
-- **Data Sources:** 
-  - Yahoo Finance API
-  - Alpha Vantage API
-- **Caching:** In-memory caching system
+- **Data Source:** Yahoo Finance API
+- **Caching:** Efficient in-memory and file-based caching system
+- **Error Handling:** Custom error classes with retry logic and detailed logging
 
-### LLM Integration (Coming Soon)
+### LLM Integration (In Progress)
 - **Language:** Python
 - **Purpose:** Wrapper for LLM interaction
 - **Integration:** API endpoint to connect frontend with Python backend
@@ -58,22 +57,17 @@ ALPHA_VANTAGE_API_KEY=your_api_key_here
 npm run dev
 ```
 
-5. Open [http://localhost:3000](http://localhost:3000) with your browser.
+5. Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ## API Endpoints
 
 ### GET /api/stock/[ticker]
 Fetches comprehensive stock data including:
-- Current market data
-- Company profile
-- Financial metrics
-- Key statistics
-- Dividend information
-- Latest news with full article content
-- Income statements
-- Balance sheets
-- Cash flow statements
-- Earnings data
+- Current market data such as symbol, price, and volume.
+- Company profile & key statistics.
+- Dividend information.
+- Latest news with full article content.
+- Additional financial metrics such as income statements, balance sheets, cash flows, and earnings data.
 
 Example response:
 ```json
@@ -93,12 +87,13 @@ Example response:
     "balanceSheets": [...],
     "cashFlows": [...],
     "earnings": [...]
-  },
-  // ... financial data, news, etc.
+  }
+  // ... additional financial data, news, etc.
 }
 ```
 
 ## Project Structure
+
 ```
 ├── app/
 │   ├── api/
@@ -112,34 +107,36 @@ Example response:
 │   ├── alpha-vantage-service.ts
 │   ├── alpha-vantage.ts
 │   ├── cache.ts
-│   └── stock-service.ts
+│   ├── stock-service.ts
+│   └── utils/
+│       ├── errorHandler.ts
+│       ├── standardize.ts
+│       └── inMemoryCache.ts
 ├── public/
 ├── .next/
 ├── node_modules/
 ├── .env.local
 ├── package.json
 ├── package-lock.json
-└── [configuration files]
+└── [other configuration files]
 ```
 
 ## Future Enhancements
 
-- [ ] RAG Integration for AI-powered analysis
-- [ ] Additional financial data sources
-- [ ] Advanced data visualization
-- [ ] User authentication
-- [ ] Saved analysis reports
-- [ ] Portfolio tracking
-- [ ] Enhanced caching strategies
-- [ ] Performance optimization
+- [ ] RAG-powered analysis improvements
+- [ ] Enhanced UI with better data visualization and responsive design
+- [ ] Integration with additional financial data sources
+- [ ] User authentication and personalized reporting
+- [ ] Advanced caching strategies and performance optimizations
+- [ ] Comprehensive integration and end-to-end testing
 
 ## Contributing
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+1. Fork the repository.
+2. Create your feature branch (`git checkout -b feature/amazing-feature`).
+3. Commit your changes (`git commit -m 'Add some amazing feature'`).
+4. Push to the branch (`git push origin feature/amazing-feature`).
+5. Open a Pull Request.
 
 ## License
 
