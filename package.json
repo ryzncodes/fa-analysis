@@ -19,6 +19,7 @@
     "cheerio": "^1.0.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "framer-motion": "^12.4.2",
     "jsdom": "^26.0.0",
     "lucide-react": "^0.475.0",
     "natural": "^8.0.1",
