@@ -9,11 +9,17 @@ const openai = new OpenAI({
 const DEFAULT_MODEL = 'gpt-4o-mini';
 
 // Cache for storing previous analysis results
-const analysisCache = new Map<string, { data: string, hash: string }>();
+const analysisCache = new Map<string, { data: string; hash: string }>();
 
 // Helper function to create a hash of the analysis data
 function createDataHash(data: Record<string, unknown>): string {
   return JSON.stringify(data);
+}
+
+// Helper function to format bold text
+function formatBoldText(text: string): string {
+  // Replace **text** with <strong>text</strong>
+  return text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
 }
 
 export interface Quote {
@@ -96,9 +102,79 @@ export interface StockData {
   fundamentals: Fundamentals;
 }
 
-export async function generateStockInsights(stockData: StockData): Promise<string> {
+// Define the structure for AI analysis response
+export interface AIAnalysisSection {
+  content: string;
+  summary: string;
+}
+
+export interface AIAnalysisResponse {
+  market_summary: AIAnalysisSection;
+  trading_activity: AIAnalysisSection;
+  financial_health: AIAnalysisSection;
+  technical_signals: AIAnalysisSection;
+  risk_factors: AIAnalysisSection;
+  growth_drivers: AIAnalysisSection;
+  sentiment_score: number;
+  sentiment_explanation: string;
+}
+
+// Helper function to parse the AI response into structured format
+function parseAIResponse(response: string): AIAnalysisResponse {
+  const sections: AIAnalysisResponse = {
+    market_summary: { content: '', summary: '' },
+    trading_activity: { content: '', summary: '' },
+    financial_health: { content: '', summary: '' },
+    technical_signals: { content: '', summary: '' },
+    risk_factors: { content: '', summary: '' },
+    growth_drivers: { content: '', summary: '' },
+    sentiment_score: 0,
+    sentiment_explanation: '',
+  };
+
+  // First, split the response into sections using ### as delimiter
+  const sectionTexts = response.split(/###\s*/);
+
+  // Process each section
+  sectionTexts.forEach((sectionText) => {
+    // Skip empty sections
+    if (!sectionText.trim()) return;
+
+    // Extract section name and content using multiline matching
+    const sectionMatch = sectionText.match(/^([A-Z_]+):\s*([\s\S]+)$/);
+    if (sectionMatch) {
+      const [, sectionName, content] = sectionMatch;
+      const normalizedName = sectionName.toLowerCase().replace(/\s+/g, '_');
+
+      // Handle sentiment score separately
+      if (normalizedName === 'sentiment_score') {
+        const scoreMatch = content.match(/(\d+)([\s\S]*)/);
+        if (scoreMatch) {
+          sections.sentiment_score = parseInt(scoreMatch[1]);
+          sections.sentiment_explanation = formatBoldText(scoreMatch[2]?.trim() || '');
+        }
+        return;
+      }
+
+      // Handle regular sections
+      if (normalizedName in sections && normalizedName !== 'sentiment_score' && normalizedName !== 'sentiment_explanation') {
+        const cleanContent = content.trim();
+        const firstSentence = cleanContent.split(/\.(?:\s|$)/)[0].trim() + '.';
+
+        sections[normalizedName as keyof Omit<AIAnalysisResponse, 'sentiment_score' | 'sentiment_explanation'>] = {
+          content: formatBoldText(cleanContent),
+          summary: formatBoldText(firstSentence),
+        } as AIAnalysisSection;
+      }
+    }
+  });
+
+  return sections;
+}
+
+export async function generateStockInsights(stockData: StockData): Promise<AIAnalysisResponse> {
   try {
-    // Create a more focused input by selecting only relevant data, now extended with more fields
+    // Create a more focused input by selecting only relevant data
     const analysisData = {
       quote: {
         symbol: stockData.quote.symbol,
@@ -157,12 +233,12 @@ export async function generateStockInsights(stockData: StockData): Promise<strin
     // Create a hash of the current data
     const currentHash = createDataHash(analysisData);
     const symbol = stockData.quote.symbol;
-    
+
     // Check if we have a cached analysis and if the data hasn't changed
     const cached = analysisCache.get(symbol);
     if (cached && cached.hash === currentHash) {
       console.log('Using cached analysis for', symbol);
-      return cached.data;
+      return JSON.parse(cached.data) as AIAnalysisResponse;
     }
 
     // If no cache hit or data changed, generate new analysis
@@ -171,59 +247,81 @@ export async function generateStockInsights(stockData: StockData): Promise<strin
       messages: [
         {
           role: 'system',
-          content: `You are an expert financial analyst. Provide a detailed analysis in exactly these sections:
+          content: `You are an expert financial analyst with deep knowledge of market dynamics, technical analysis, and fundamental analysis. Your task is to provide a comprehensive stock analysis that is:
+1. Data-driven: Use specific numbers and metrics from the provided data
+2. Actionable: Provide clear insights that investors can use for decision-making
+3. Balanced: Consider both bullish and bearish factors
+4. Forward-looking: Focus on future potential while considering historical context
 
-MARKET_SUMMARY
-Provide a comprehensive overview of the stock's current trading day, including price movement, context about the change, and how it compares to recent performance.
+Analyze the data and provide insights in these exact sections:
 
-TRADING_ACTIVITY
-Analyze the trading volume, price range, and what this indicates about market sentiment. Include comparisons to average volume and discuss any notable patterns.
+MARKET_SUMMARY:
+Analyze current price action, market context, and overall stock performance. Reference any relevant recent news that might be impacting today's movement. Compare with sector/industry trends if relevant. Focus on what's driving today's movement.
 
-FINANCIAL_HEALTH
-Provide a thorough analysis of the company's financial metrics including profit margins, revenue growth, ROE, and cash position. Explain what these numbers indicate about the company's financial strength.
+TRADING_ACTIVITY:
+Examine volume patterns, price ranges, and market participation. Compare current trading activity with historical averages. Identify any unusual patterns or institutional activity. Consider if recent news events are affecting trading patterns.
 
-TECHNICAL_SIGNALS
-Detailed analysis of price trends, support and resistance levels, technical indicators, and what they suggest about future price movement. Include both short and medium-term perspectives.
+FINANCIAL_HEALTH:
+Evaluate key financial metrics including margins, cash flow, debt levels, and efficiency ratios. Assess the company's financial strength and operational efficiency. Consider how recent developments might impact these metrics.
 
-RISK_FACTORS
-Comprehensive analysis of both company-specific and market-wide risks that could impact the stock. Include regulatory, competitive, and economic factors.
+TECHNICAL_SIGNALS:
+Analyze price trends, support/resistance levels, and technical indicators. Consider both short-term trading opportunities and longer-term price patterns. Highlight key technical levels and potential breakout/breakdown points.
 
-GROWTH_DRIVERS
-In-depth analysis of potential catalysts for future growth, including market opportunities, company initiatives, industry trends, and competitive advantages.
+RISK_FACTORS:
+Identify specific company, industry, and market risks. Consider competitive threats, regulatory challenges, and macroeconomic factors. Include any emerging risks highlighted in recent news.
 
-Format each section exactly like this:
-SECTION_TITLE: [your detailed analysis for this section]
+GROWTH_DRIVERS:
+Evaluate potential catalysts including market opportunities, innovation potential, competitive advantages, and industry trends. Consider recent announcements or news that could impact future growth.
 
-Provide thorough analysis while keeping the language accessible to retail investors. Use specific numbers and metrics when relevant, and explain their significance.
+For each section:
+1. Provide detailed analysis
+2. Use specific numbers when relevant
+3. Explain the significance of key metrics
+4. Connect data points to form meaningful insights
+5. Reference relevant news events when applicable
+
+When analyzing news:
+- Consider the timing and source of news
+- Evaluate potential market impact
+- Look for patterns in news sentiment
+- Connect news events to market movements
+- Assess if news supports or contradicts other data points
 
 End with:
 SENTIMENT_SCORE: [0-100]
+[Brief explanation of the score, including how recent news affects the outlook]
 
 Scoring Guide:
-0-20: Strong Sell (Major red flags)
-21-40: Sell (Significant concerns)
-41-60: Hold (Mixed outlook)
-61-80: Buy (Positive outlook)
-81-100: Strong Buy (Exceptional outlook)`
+0-20: Strong Sell (Major red flags or immediate threats)
+21-40: Sell (Significant concerns outweigh potential)
+41-60: Hold (Balanced outlook or unclear direction)
+61-80: Buy (Strong positive factors with manageable risks)
+81-100: Strong Buy (Exceptional outlook with multiple catalysts)
+
+Keep the language professional but accessible to retail investors. Focus on actionable insights rather than just describing the data.`,
         },
         {
           role: 'user',
           content: `Stock analysis for ${stockData.quote.symbol}:
-${JSON.stringify(analysisData, null, 2)}`
-        }
+${JSON.stringify(analysisData, null, 2)}`,
+        },
       ],
       temperature: 0.3,
-      max_tokens: 800,
+      max_tokens: 1500,
     });
 
-    const analysis = response.choices[0]?.message?.content || 'No insights available.';
-    
-    // Cache the new analysis
-    analysisCache.set(symbol, { data: analysis, hash: currentHash });
+    const rawAnalysis = response.choices[0]?.message?.content || 'No insights available.';
+    const structuredAnalysis = parseAIResponse(rawAnalysis);
 
-    return analysis;
+    // Cache the new analysis
+    analysisCache.set(symbol, {
+      data: JSON.stringify(structuredAnalysis),
+      hash: currentHash,
+    });
+
+    return structuredAnalysis;
   } catch (error) {
     console.error('Error generating stock insights:', error);
     throw new Error('Failed to generate stock insights');
   }
-} 
+}
