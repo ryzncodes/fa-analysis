@@ -109,10 +109,18 @@ export async function GET(request: Request) {
 
         // Calculate start date based on timeframe
         const now = new Date();
-        const startDate = new Date(now);
+        const startDate = new Date();
+
+        // Ensure we're not requesting future data
+        now.setHours(23, 59, 59, 999);
+        startDate.setHours(0, 0, 0, 0);
+
+        // Set interval and adjust dates based on timeframe
+        let interval: '1d' | '1wk' | '1mo' = '1d';
+
         switch (timeframe) {
           case '1D':
-            startDate.setHours(0, 0, 0, 0);
+            startDate.setDate(startDate.getDate() - 1);
             break;
           case '1W':
             startDate.setDate(startDate.getDate() - 7);
@@ -122,25 +130,28 @@ export async function GET(request: Request) {
             break;
           case '3M':
             startDate.setMonth(startDate.getMonth() - 3);
+            interval = timeframe === '3M' ? '1d' : interval;
             break;
           case '1Y':
             startDate.setFullYear(startDate.getFullYear() - 1);
+            interval = '1wk';
             break;
           case '5Y':
             startDate.setFullYear(startDate.getFullYear() - 5);
+            interval = '1mo';
             break;
           default:
             startDate.setMonth(startDate.getMonth() - 1); // Default to 1M
         }
 
         try {
-          console.log(`Fetching historical data for ${symbol} from ${startDate.toISOString()} to ${now.toISOString()}`);
+          console.log(`Fetching historical data for ${symbol} from ${startDate.toISOString()} to ${now.toISOString()} with interval ${interval}`);
 
           // Fetch real historical data from Yahoo Finance
           const result = await yahooFinance.historical(symbol, {
             period1: startDate,
             period2: now,
-            interval: '1d', // Use daily interval for consistent data
+            interval,
           });
 
           if (!result || !Array.isArray(result) || result.length === 0) {

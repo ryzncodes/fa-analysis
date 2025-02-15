@@ -45,6 +45,7 @@ export function PriceChart({ data: initialData, className, symbol }: PriceChartP
   const candlestickSeries = React.useRef<ISeriesApi<'Candlestick'>>(null!);
   const volumeSeries = React.useRef<ISeriesApi<'Histogram'>>(null!);
   const resizeObserver = React.useRef<ResizeObserver | null>(null);
+  const isInitialMount = React.useRef(true);
 
   // Format price for legend
   const formatPrice = (price: number) => {
@@ -69,138 +70,164 @@ export function PriceChart({ data: initialData, className, symbol }: PriceChartP
     return volume.toString();
   };
 
-  // Create chart instance only once
+  // Initialize chart and handle updates
   React.useEffect(() => {
-    if (!chartContainerRef.current || chartInstance.current) return;
+    if (!chartContainerRef.current) return;
 
-    // Create chart instance with enhanced options
-    chartInstance.current = createChart(chartContainerRef.current, {
-      layout: {
-        background: { type: ColorType.Solid, color: 'transparent' },
-        textColor: 'rgba(255, 255, 255, 0.9)',
-        fontFamily: 'system-ui',
-      },
-      grid: {
-        vertLines: { color: 'rgba(255, 255, 255, 0.1)' },
-        horzLines: { color: 'rgba(255, 255, 255, 0.1)' },
-      },
-      width: chartContainerRef.current.clientWidth,
-      height: 400,
-      rightPriceScale: {
+    const shouldCreateNewChart = !chartInstance.current;
+
+    if (shouldCreateNewChart) {
+      // Create chart instance with enhanced options
+      chartInstance.current = createChart(chartContainerRef.current, {
+        layout: {
+          background: { type: ColorType.Solid, color: 'transparent' },
+          textColor: 'rgba(255, 255, 255, 0.9)',
+          fontFamily: 'system-ui',
+        },
+        grid: {
+          vertLines: { color: 'rgba(255, 255, 255, 0.1)' },
+          horzLines: { color: 'rgba(255, 255, 255, 0.1)' },
+        },
+        width: chartContainerRef.current.clientWidth,
+        height: 400,
+        rightPriceScale: {
+          scaleMargins: {
+            top: 0.1,
+            bottom: 0.3,
+          },
+          borderVisible: false,
+          autoScale: true,
+        },
+        timeScale: {
+          borderVisible: false,
+          timeVisible: true,
+          secondsVisible: false,
+          rightOffset: 12,
+          barSpacing: 6,
+          fixLeftEdge: true,
+          lockVisibleTimeRangeOnResize: true,
+        },
+        crosshair: {
+          mode: 1,
+          vertLine: {
+            width: 1,
+            color: 'rgba(255, 255, 255, 0.4)',
+            style: 3,
+          },
+          horzLine: {
+            width: 1,
+            color: 'rgba(255, 255, 255, 0.4)',
+            style: 3,
+          },
+        },
+        handleScroll: {
+          mouseWheel: true,
+          pressedMouseMove: true,
+          horzTouchDrag: true,
+          vertTouchDrag: true,
+        },
+        handleScale: {
+          axisPressedMouseMove: true,
+          mouseWheel: true,
+          pinch: true,
+        },
+      });
+
+      // Add candlestick series
+      candlestickSeries.current = chartInstance.current.addCandlestickSeries({
+        upColor: '#22c55e',
+        downColor: '#ef4444',
+        borderVisible: false,
+        wickUpColor: '#22c55e',
+        wickDownColor: '#ef4444',
+        priceFormat: {
+          type: 'price',
+          precision: 2,
+          minMove: 0.01,
+        },
+      });
+
+      // Add volume series
+      volumeSeries.current = chartInstance.current.addHistogramSeries({
+        priceFormat: {
+          type: 'volume',
+        },
+        priceScaleId: 'volume',
+        color: '#60a5fa',
+        base: 0,
+      });
+
+      // Configure volume scale
+      chartInstance.current.priceScale('volume').applyOptions({
         scaleMargins: {
-          top: 0.1,
-          bottom: 0.3,
+          top: 0.7,
+          bottom: 0,
         },
-        borderVisible: false,
-        autoScale: true,
-      },
-      timeScale: {
-        borderVisible: false,
-        timeVisible: true,
-        secondsVisible: false,
-        rightOffset: 12,
-        barSpacing: 6,
-        fixLeftEdge: true,
-        lockVisibleTimeRangeOnResize: true,
-      },
-      crosshair: {
-        mode: 1,
-        vertLine: {
-          width: 1,
-          color: 'rgba(255, 255, 255, 0.4)',
-          style: 3,
-        },
-        horzLine: {
-          width: 1,
-          color: 'rgba(255, 255, 255, 0.4)',
-          style: 3,
-        },
-      },
-      handleScroll: {
-        mouseWheel: true,
-        pressedMouseMove: true,
-        horzTouchDrag: true,
-        vertTouchDrag: true,
-      },
-      handleScale: {
-        axisPressedMouseMove: true,
-        mouseWheel: true,
-        pinch: true,
-      },
-    });
+        visible: false,
+      });
 
-    // Add candlestick series with enhanced options
-    candlestickSeries.current = chartInstance.current.addCandlestickSeries({
-      upColor: '#22c55e',
-      downColor: '#ef4444',
-      borderVisible: false,
-      wickUpColor: '#22c55e',
-      wickDownColor: '#ef4444',
-      priceFormat: {
-        type: 'price',
-        precision: 2,
-        minMove: 0.01,
-      },
-    });
+      // Set up crosshair move handler
+      chartInstance.current.subscribeCrosshairMove((param) => {
+        if (param.time && param.point) {
+          const price = param.seriesData.get(candlestickSeries.current) as SeriesData;
+          const volume = param.seriesData.get(volumeSeries.current) as SeriesData;
+          if (price) {
+            setLegendData({
+              open: price.open || 0,
+              high: price.high || 0,
+              low: price.low || 0,
+              close: price.close || 0,
+              volume: volume?.value || 0,
+            });
+          }
+        } else {
+          setLegendData(null);
+        }
+      });
 
-    // Add volume series with enhanced options
-    volumeSeries.current = chartInstance.current.addHistogramSeries({
-      priceFormat: {
-        type: 'volume',
-      },
-      priceScaleId: 'volume',
-      color: '#60a5fa',
-      base: 0,
-    });
-
-    // Configure volume scale
-    chartInstance.current.priceScale('volume').applyOptions({
-      scaleMargins: {
-        top: 0.7,
-        bottom: 0,
-      },
-      visible: false,
-    });
-
-    // Subscribe to crosshair move for legend updates
-    chartInstance.current.subscribeCrosshairMove((param) => {
-      if (param.time && param.point) {
-        const price = param.seriesData.get(candlestickSeries.current) as SeriesData;
-        const volume = param.seriesData.get(volumeSeries.current) as SeriesData;
-        if (price) {
-          setLegendData({
-            open: price.open || 0,
-            high: price.high || 0,
-            low: price.low || 0,
-            close: price.close || 0,
-            volume: volume?.value || 0,
+      // Set up resize observer
+      resizeObserver.current = new ResizeObserver((entries) => {
+        if (chartInstance.current && entries[0]) {
+          requestAnimationFrame(() => {
+            chartInstance.current?.applyOptions({
+              width: entries[0].contentRect.width,
+            });
           });
         }
-      } else {
-        setLegendData(null);
-      }
-    });
+      });
 
-    // Set up resize observer for smooth resizing
-    resizeObserver.current = new ResizeObserver((entries) => {
-      if (chartInstance.current && entries[0]) {
-        requestAnimationFrame(() => {
-          chartInstance.current?.applyOptions({
-            width: entries[0].contentRect.width,
-          });
-        });
-      }
-    });
+      resizeObserver.current.observe(chartContainerRef.current);
+    }
 
-    resizeObserver.current.observe(chartContainerRef.current);
+    // Update data if we have it
+    if (data.length > 0 && candlestickSeries.current && volumeSeries.current) {
+      try {
+        candlestickSeries.current.setData(data);
+        volumeSeries.current.setData(
+          data.map((d) => ({
+            time: d.time,
+            value: d.volume,
+            color: d.close > d.open ? '#22c55e80' : '#ef444480',
+          }))
+        );
+        chartInstance.current?.timeScale().fitContent();
+      } catch (error) {
+        console.error('Failed to update chart data:', error);
+        setError('Failed to update chart. Please try refreshing the page.');
+      }
+    }
 
     return () => {
-      resizeObserver.current?.disconnect();
-      if (chartInstance.current) {
-        chartInstance.current.remove();
+      if (!isInitialMount.current) {
+        resizeObserver.current?.disconnect();
+        if (chartInstance.current) {
+          chartInstance.current.remove();
+          chartInstance.current = null;
+        }
       }
+      isInitialMount.current = false;
     };
-  }, []); // Empty dependency array - create chart only once
+  }, [data]);
 
   // Fetch new data when timeframe changes
   React.useEffect(() => {
@@ -229,31 +256,9 @@ export function PriceChart({ data: initialData, className, symbol }: PriceChartP
       }
     }
 
+    // Always fetch when timeframe changes, regardless of the timeframe
     fetchData();
   }, [selectedTimeframe, symbol]);
-
-  // Update data separately
-  React.useEffect(() => {
-    if (!chartInstance.current || !candlestickSeries.current || !volumeSeries.current || !data.length) return;
-
-    try {
-      // Update data for both series
-      candlestickSeries.current.setData(data);
-      volumeSeries.current.setData(
-        data.map((d) => ({
-          time: d.time,
-          value: d.volume,
-          color: d.close > d.open ? '#22c55e80' : '#ef444480',
-        }))
-      );
-
-      // Fit content with animation
-      chartInstance.current.timeScale().fitContent();
-    } catch (error) {
-      console.error('Failed to update chart data:', error);
-      setError('Failed to update chart. Please try refreshing the page.');
-    }
-  }, [data]);
 
   const timeframes = [
     { label: '1D', value: '1D' },
